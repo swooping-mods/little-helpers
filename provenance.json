@@ -1,0 +1,203 @@
+{
+  "schema": "mod-source-hashes/v1",
+  "source_files": {
+    "mods/hints-framework/sdk/client.h": {
+      "export_sha256": "4e62b61016a5e2641c62fca9a33a60cd2cddeb8ca71485454c3655bc49c56edc"
+    },
+    "mods/hints-framework/sdk/hints.h": {
+      "export_sha256": "9a80fd44546c6da91a1f0a7bb60f90489074aff634a3d80a6c36f9f9431e3862"
+    },
+    "mods/little-helpers/adapters/glyphs.h": {
+      "export_sha256": "4b9446997087e3870d7b5f652205d01b29c2b01f5462e6b41cdffd728d45d3ee"
+    },
+    "mods/little-helpers/adapters/pet_core.h": {
+      "export_sha256": "b053310cecbb8da078929eb4942294614aba2f7b5c204a99d500fceaebcad992"
+    },
+    "mods/little-helpers/adapters/pet_store.h": {
+      "export_sha256": "7cb373dd123ad67930a1b39939609520acc1439ecd7e38ffa5d08b761b5c0788"
+    },
+    "mods/little-helpers/adapters/unity.h": {
+      "export_sha256": "a61e934b71515c755714e8b2ea84501b7510f2803af080f563a99481a3e7390a"
+    },
+    "mods/little-helpers/adapters/world.h": {
+      "export_sha256": "dae4b9e8442859b2cf6c2f7f6ba99b0d2fac0ef2aba5b129987760109edbb3d3"
+    },
+    "mods/little-helpers/animation_core.h": {
+      "export_sha256": "f2cf6f74936623b5a035a65d76a673a599ccab56af34f42c43a2e8e69ded311c"
+    },
+    "mods/little-helpers/assets/generated/plush_data.h": {
+      "export_sha256": "27ea40bfbf606d30d6ec50b1c200d388384506cf829df733d46104de3b4d0d59"
+    },
+    "mods/little-helpers/audio/generated/brush_lower.wav": {
+      "export_sha256": "ab79b4592a93fafe1323192ad41a300005d08cabb32db26492d0bed4ea555823"
+    },
+    "mods/little-helpers/audio/generated/brush_sweep.wav": {
+      "export_sha256": "7059a721b44d511f28030cfba0a7db64f59662c70630171d77d3833f6a897cb4"
+    },
+    "mods/little-helpers/audio/generated/cues.json": {
+      "export_sha256": "15b3d7451e689a5e06ecdaf40c10175c4ab09e1be81892932f60256764cbc118"
+    },
+    "mods/little-helpers/audio/generated/footstep.wav": {
+      "export_sha256": "a19fef58c18cb6fe67a8127452f196b50479062b6312aa0d8654587525f6b117"
+    },
+    "mods/little-helpers/audio/generated/happy.wav": {
+      "export_sha256": "c6e6ad84ff735e34ca2e17b443ce9bdb68ba34932c04261441bf43d5462b55dc"
+    },
+    "mods/little-helpers/audio/generated/helper_sounds.h": {
+      "export_sha256": "fbdaeab9def674b0b20ad3630de57195772fff77f3e726c7e21d9bf6d599cbd8"
+    },
+    "mods/little-helpers/audio/generated/packed.json": {
+      "export_sha256": "060c75bbe63f79356bc9fc80950d4e63f28b2092945568bb0809fca2dc035b56"
+    },
+    "mods/little-helpers/contact_adapter.h": {
+      "export_sha256": "98c4e3ced8cab5585b80a27545cbfe0807ced58c200f484e14a549938c8109ad"
+    },
+    "mods/little-helpers/door_core.h": {
+      "export_sha256": "1357b781839519ac4cb170fb7b9e3abfb99b43c6a236b3880b575865c9c297ea"
+    },
+    "mods/little-helpers/doors.h": {
+      "export_sha256": "0949c9988423a092051b7ede5ec12e6768f148de1f3b10f5e3972ea1d0288302"
+    },
+    "mods/little-helpers/eyes_core.h": {
+      "export_sha256": "2e706977fec38d9200c188183d48cf65a5d0cd3afe946c16aca819e36d0ba433"
+    },
+    "mods/little-helpers/helper_core.h": {
+      "export_sha256": "ecf56827131003252e4e6abaa2716e306ec493dbf8c6b05fbf5423025938c0a1"
+    },
+    "mods/little-helpers/input.h": {
+      "export_sha256": "fcc6c15d41bab5856c7d8d6c62e207072b944d4e9585681cbab35b6a053c7645"
+    },
+    "mods/little-helpers/interaction.h": {
+      "export_sha256": "846e3014d12044effb2a7a78959dd1e6c72e873a7c25c2c4a441eefb5a231488"
+    },
+    "mods/little-helpers/mod.c": {
+      "export_sha256": "7654a19661e4e0764971c602afbf9f97a54a881bf746fb2b487b83e1d9fb1080"
+    },
+    "mods/little-helpers/mod.json": {
+      "export_sha256": "0205c7622cb1f2c1b35dde83ffecb50b1b4e69782b58a0ff92f229bed9e54680"
+    },
+    "mods/little-helpers/route_core.h": {
+      "export_sha256": "01a3c86a3568533bd4397a5270c07bafc89a44c69f1f4304dab574006370798d"
+    },
+    "mods/little-helpers/route_probe.h": {
+      "export_sha256": "27cb0b45e779f9bf5ec011ab59b3c1334e57a9f9d245fa8bddb7322e71f268ff"
+    },
+    "mods/little-helpers/sound.h": {
+      "export_sha256": "1c5ec41a89b8b280922cbedc859dec808d7f88d0be239e164aa3200c49129302"
+    },
+    "mods/little-helpers/sound_events.h": {
+      "export_sha256": "d42e02651bc96bb7fdb0f5c6e32c4e7caab19b1354720dec5d48aa160e15af81"
+    },
+    "mods/little-helpers/terminal.h": {
+      "export_sha256": "6cf805d8855672323aa2e381e2a837bd516b30e4be4f13fefc5259580f08df83"
+    },
+    "mods/little-helpers/terminal_model.h": {
+      "export_sha256": "f190f201209ae432bca7082a9bf61b26e4de22173bd2cbe4141498bf2e038daf"
+    },
+    "mods/little-helpers/test_tools.h": {
+      "export_sha256": "22ddb19684539081777b18f65910bfbba0fa133c3e0752de0bd2e02a0a9cdd1f"
+    },
+    "mods/little-helpers/unit_commands.h": {
+      "export_sha256": "e4b9f45af840ca2c0e73ad05dbec141af361408d4b45cd985535bcf5c24ed56a"
+    },
+    "mods/little-helpers/unit_purchase.h": {
+      "export_sha256": "cb0fb52892327b6c168c912980537a72ddba04ea02ef3540c2453661974f1536"
+    },
+    "mods/little-helpers/unit_replica.h": {
+      "export_sha256": "2c4b0365335f8fd35cf07914d7090ef5097e4a05ab69b39a07032c0994ad3f1d"
+    },
+    "mods/little-helpers/unit_world.h": {
+      "export_sha256": "03780035a517cb0957b099b2a628a24e771c093209e03c458006c25c2a21c04a"
+    },
+    "mods/little-helpers/visual.h": {
+      "export_sha256": "97cdd367455128f8a8dc82cdb41d6a6c50564024f6c7f06096e7d7575eea0d92"
+    },
+    "mods/sound-framework/sdk/assets.h": {
+      "export_sha256": "dd871aee5b1ba877cd0a9e10e80b3fa028c549ec4801914666b83b63afa60129"
+    },
+    "mods/sound-framework/sdk/client.h": {
+      "export_sha256": "de872effa173678f892680b9ba8804431b379e0ee5e06609f1ca4a1a360b0dd6"
+    },
+    "mods/sound-framework/sdk/sound.h": {
+      "export_sha256": "9f7ea75cc11b730018b676bd2e0364cb402bf94daa0410df181af00405af0164"
+    },
+    "mods/unit-runtime/client.h": {
+      "export_sha256": "9f37d31ae1d13cc8560bc0cc249c129dcce7b32fd48006b558351bc11d7ab912"
+    },
+    "mods/unit-runtime/contact.h": {
+      "export_sha256": "5962f845424d1e8b7af6dd0b3ec6ac4b6f29663a9b0d2f8f9d54dfe4ea5afe53"
+    },
+    "mods/unit-runtime/protocol.h": {
+      "export_sha256": "704d165d1e23908f6f9555642c2cb739b89ec2b4678bed0b38d1ea5b416288fd"
+    },
+    "mods/unit-runtime/sdk.h": {
+      "export_sha256": "655436373a5e1e2413c34e9d68efcaa1dcd236563b3ce09d7b0f0e48959f57c2"
+    },
+    "mods/unit-runtime/sources.h": {
+      "export_sha256": "8a84208658b1352ce83b3a6d75d456d664c2093a90547d7476826a4f259a069a"
+    },
+    "runtime/native/gameplay.h": {
+      "export_sha256": "7676362469a7972f54f9c7304d41d32396b4f81cc9a9f9935983c54b90cb061d"
+    },
+    "runtime/native/hook_context.h": {
+      "export_sha256": "28f6c6502f3b4d6e8ae02c06e60b6d3b7f1b8674d0a5f20ac42664ea3133d016"
+    },
+    "runtime/native/hook_engine.h": {
+      "export_sha256": "2cea82d754c1792bc3eddfba10261c7de7eb0a33316cc5d1aa28a99ee78882df"
+    },
+    "runtime/native/input.h": {
+      "export_sha256": "75e2f0cf8b8df54256a647d3f6b42d90b6ae2fcc48268ba73b974fa7cbc6c6bd"
+    },
+    "runtime/native/interaction.h": {
+      "export_sha256": "df9e74ca26ed8416dc04436844c146dbd5273c1d06c0bc62db5bd8719845b71e"
+    },
+    "runtime/native/interaction_client.h": {
+      "export_sha256": "4c37e3e6f691d62cbfe75dcd1a544891377f620b7111e2981c0edf64bbfd1b77"
+    },
+    "runtime/native/interaction_unity.h": {
+      "export_sha256": "edc1c5a61d8daf2485b7d8e6eb474e91ad6e6c91e8a88de14bb50bda854b192c"
+    },
+    "runtime/native/services.h": {
+      "export_sha256": "1178e09c77f30f53bbccbfbacf8771e5faad1cf79753703d90dfd0a1e0fbadeb"
+    },
+    "runtime/sdk/context.h": {
+      "export_sha256": "6c84145cc761550c4943aa10c52242a538e92243f79a1b20c65b6a4ef9e82605"
+    },
+    "runtime/sdk/hooks.h": {
+      "export_sha256": "7c006f1254dd6a130f56dac499ba8196fb84ee4883443ee4f12d601534df56ec"
+    },
+    "runtime/sdk/input.h": {
+      "export_sha256": "33739269793e88776c6f611a05e19ade01bd8326a115d38a0eec71ff64344ac8"
+    },
+    "runtime/sdk/input_host.h": {
+      "export_sha256": "8d3f59ed3e21bdb7c7528737dd263b234c65e05b481a142eaf5f33f70604e0cb"
+    },
+    "runtime/sdk/input_registry.h": {
+      "export_sha256": "53cf344e49ff195b3f0a4f35078d6dde84693a895eb4030734d218cc692bc7fe"
+    },
+    "runtime/sdk/interaction.h": {
+      "export_sha256": "27a4bba9124f712995eb712d5c28bdeeb11e805322de82fe69379f1fc9b558b0"
+    },
+    "runtime/sdk/native_adapters/raycast_layout.h": {
+      "export_sha256": "7ba81c9a223b6dc8a7172650ba12dde0a3a5fd99f3844e46bbf1a53f5d1cf25a"
+    },
+    "runtime/sdk/native_adapters/unity.h": {
+      "export_sha256": "fc1ed6c1d70f0de9c24515c50b2b53eaaf45f5942ce71a7c9e1c2c6548b0c2aa"
+    },
+    "runtime/sdk/services.h": {
+      "export_sha256": "72de584c98cf0ca6367f5decd4416c78fa4eeea44b4b48401d0737a44b2c7a2b"
+    },
+    "runtime/sdk/services_client.h": {
+      "export_sha256": "17f670371f5798457301b14c046daa99632c9685cc2c5f78921c3fe53d095479"
+    },
+    "runtime/sdk/storage.h": {
+      "export_sha256": "c95b63653b564fb67d5385ec76abf80582daee82aa8da03178350c97cfb29a2b"
+    },
+    "runtime/sdk/vehicle_input.h": {
+      "export_sha256": "6af332b456ff9fb74e96a6e963a8cf9627bd51a8edca55f07b6e5a829b9da790"
+    },
+    "runtime/sdk/wallet.h": {
+      "export_sha256": "04f19f23ca6f51f015716362103c5936b972d90fbafd6447ff84853836e9cf22"
+    }
+  }
+}

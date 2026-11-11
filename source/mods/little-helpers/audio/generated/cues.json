@@ -1,0 +1,20 @@
+{
+  "cues": [
+    {
+      "id": "brush_sweep",
+      "wav": "brush_sweep.wav"
+    },
+    {
+      "id": "footstep",
+      "wav": "footstep.wav"
+    },
+    {
+      "id": "brush_lower",
+      "wav": "brush_lower.wav"
+    },
+    {
+      "id": "happy",
+      "wav": "happy.wav"
+    }
+  ]
+}

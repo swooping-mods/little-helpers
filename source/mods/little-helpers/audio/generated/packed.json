@@ -1,0 +1,35 @@
+{
+  "schema": "moon-sound-assets/v1",
+  "cues": [
+    {
+      "id": "brush_sweep",
+      "wav": "brush_sweep.wav",
+      "samples": 43200,
+      "rate": 48000,
+      "sha256": "7059a721b44d511f28030cfba0a7db64f59662c70630171d77d3833f6a897cb4"
+    },
+    {
+      "id": "footstep",
+      "wav": "footstep.wav",
+      "samples": 37440,
+      "rate": 48000,
+      "sha256": "a19fef58c18cb6fe67a8127452f196b50479062b6312aa0d8654587525f6b117"
+    },
+    {
+      "id": "brush_lower",
+      "wav": "brush_lower.wav",
+      "samples": 29280,
+      "rate": 48000,
+      "sha256": "ab79b4592a93fafe1323192ad41a300005d08cabb32db26492d0bed4ea555823"
+    },
+    {
+      "id": "happy",
+      "wav": "happy.wav",
+      "samples": 41760,
+      "rate": 48000,
+      "sha256": "c6e6ad84ff735e34ca2e17b443ce9bdb68ba34932c04261441bf43d5462b55dc"
+    }
+  ],
+  "total_samples": 151680,
+  "header_sha256": "fbdaeab9def674b0b20ad3630de57195772fff77f3e726c7e21d9bf6d599cbd8"
+}

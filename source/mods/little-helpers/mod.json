@@ -1,0 +1,40 @@
+{
+  "id": "little-helpers",
+  "kind": "native",
+  "version": "0.4.0",
+  "feature_dependencies": [
+    "unit-runtime",
+    "sound-framework",
+    "hints-framework"
+  ],
+  "gameplay": true,
+  "display_name": "Little Helpers",
+  "play_help": [
+    "Little Helpers \u2014 starter lobby, wall terminal to the RIGHT of the whiteboard. Aim at BUY / UPGRADE and press E.",
+    "A helper costs $75. Capacity starts at one; upgrades unlock slots two, three and four.",
+    "Helpers seek dirty patches and make small brush strokes. Efficient Moving Units provides host simulation, guest visuals and authenticated purchases; real Steam co-op qualification is pending.",
+    "Aim at a helper and E to greet it. Stationary helpers wave; working helpers acknowledge with happy eyes. Interactions consume overlapping keys."
+  ],
+  "requires_apis": [
+    {
+      "api": "unit-runtime.units",
+      "abi": 1,
+      "min_size": 80
+    },
+    {
+      "api": "unit-runtime.contacts",
+      "abi": 1,
+      "min_size": 16
+    },
+    {
+      "api": "sound-framework.sound",
+      "abi": 1,
+      "min_size": 48
+    },
+    {
+      "api": "hints-framework.hints",
+      "abi": 1,
+      "min_size": 24
+    }
+  ]
+}
