@@ -1,5 +1,7 @@
 # Little Helpers
 
+<img src="media/icon.png" alt="Little Helpers icon" width="128" height="128">
+
 E buys at the wall terminal, upgrades capacity or greets a nearby plush helper.
 
 ## Install
