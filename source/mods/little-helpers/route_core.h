@@ -5,14 +5,18 @@
 #define LR_SIDE 49
 #define LR_NODES (LR_SIDE*LR_SIDE)
 #define LR_PATH 256
+#define LR_SHARED_EXPANSIONS 4u
 enum {LR_SEARCHING=1,LR_READY,LR_FAILED};
 typedef int (*LREdge)(void *,SPVec3,SPVec3,SPVec3 *);
 typedef struct {SPVec3 point;float cost;short parent;unsigned char state;} LRNode;
 typedef struct {
-    SPVec3 origin,right,forward,goal;
+    SPVec3 origin,right,forward,goal,job_goal;
     LRNode nodes[LR_NODES];unsigned short path[LR_PATH];
-    unsigned state,count,index,expanded,last;SPVec3 endpoint;
+    unsigned state,count,index,expanded,last,exit_route;SPVec3 endpoint;
 } LHRoute;
+static inline void lr_reset_workers(LHRoute *routes,unsigned *portals,unsigned *exits){
+    lh_zero(routes,sizeof(*routes)*LH_MAX);lh_zero(portals,sizeof(*portals)*LH_MAX);lh_zero(exits,sizeof(*exits)*LH_MAX);
+}
 static float lr_abs(float f){return f<0?-f:f;}
 static float lr_h(const LHRoute *r,SPVec3 point){SPVec3 d=lh_sub(r->goal,point);return lr_abs(lh_dot(d,r->right))+lr_abs(lh_dot(d,r->forward));}
 static void lr_begin(LHRoute *r,SPVec3 position,SPVec3 right,SPVec3 forward,SPVec3 goal){

@@ -8,7 +8,7 @@ static int lh_interaction_query(void *context,void *actor,MoonInteractionTarget 
     DWORD pid=0;window_pid(foreground_window(),&pid);if(pid!=GetCurrentProcessId())return 0;
     MoonInteractionPoint origin,direction;if(!moon_interaction_unity_view(walker,&origin,&direction))return 0;
     int button=target_button(walker),found=0;
-    if(button>=0){SPVec3 point=su_vector(su.tr_get_position,sw_transform(su_get(buttons[button])));*target=(MoonInteractionTarget){buttons[button],su_sqrt(moon_interaction_distance2(origin,moon_interaction_from_sp(point))),0,(unsigned)button};found=1;}
+    if(button>=0){SPVec3 point=su_vector(su.tr_get_position,su_transform(su_get(buttons[button])));*target=(MoonInteractionTarget){buttons[button],su_sqrt(moon_interaction_distance2(origin,moon_interaction_from_sp(point))),0,(unsigned)button};found=1;}
     for(unsigned i=0;i<helpers.owned&&i<LH_MAX;i++){
         const LHWorker *p=helpers.workers+i;const LHVisual *v=lv_helpers+i;if(!p->active||!v->made||!su_alive(su_get(v->root)))continue;
         SPVec3 center=su_add(su_vector(su.tr_get_position,su_get(v->transform)),su_mul(v->up,.32f));MoonInteractionPoint point=moon_interaction_from_sp(center);

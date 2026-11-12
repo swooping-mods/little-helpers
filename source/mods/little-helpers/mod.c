@@ -5,7 +5,7 @@
 #include "adapters/unity.h"
 #define SP_IMPLEMENTATION
 #include "adapters/pet_core.h"
-static int test_tools,helper_route_probe,helper_physics_ids;
+static int test_tools,helper_observe,helper_route_probe,helper_physics_ids;
 static void helper_physics_observe(unsigned,SPVec3,SPVec3,SPVec3,float,float,PTR,int);
 #define SW_BLOCK_OBSERVER(S,F,T,U,R,H,A,C) do{if(test_tools&&helper_route_probe)helper_physics_observe(S,F,T,U,R,H,A,C);}while(0)
 #include "adapters/world.h"
@@ -18,6 +18,7 @@ static void helper_physics_observe(unsigned,SPVec3,SPVec3,SPVec3,float,float,PTR
 #undef mh_connect
 #include "adapters/pet_store.h"
 #include "helper_core.h"
+#include "brush_contact.h"
 #include "unit_replica.h"
 #include "unit_commands.h"
 #include "contact_adapter.h"
@@ -99,7 +100,8 @@ static U64 helper_sim_tick;
 static int helper_registry_failed;
 static LHRoute routes[LH_MAX];
 static LHRouteProbe helper_route_probes[LH_MAX];
-typedef struct {SPVec3 point;float before,age;unsigned cells,active;} LHDustProbe;
+typedef struct {SPVec3 point;float before,age;unsigned cells,active,worker;float brush_gap;} LHDustProbe;
+static LHBrushProbe helper_brush_probes[LH_MAX];
 static LHDustProbe dust_probes[32];
 static PTR helper_log,focus,clean_stroke,local_id,host_id,joined;
 static int ticks,thread_id,world_frames,ready,failed,dirty,store_failed;
@@ -133,17 +135,28 @@ static int load_helpers(void){
     helpers.capacity=s.capacity;helpers.owned=s.owned;helpers.watermark=s.watermark;helpers.latest=(LHResult){s.code,0,s.watermark,s.action};return 1;
 }
 static int support_used(SPU64 id){for(unsigned i=0;i<LH_MAX;i++)if(navigation.players[i].active&&navigation.players[i].support_id==id)return 1;return 0;}
+#include "spawn_core.h"
 static int spawn_point(PTR walker,unsigned slot,SPVec3 *point,SPVec3 *up,SPVec3 *heading){
-    PTR tr=sw_transform(walker);SPVec3 origin=su_vector(su.tr_get_position,tr),right=su_vector(su.tr_right,tr);*heading=su_vector(su.tr_forward,tr);
+    PTR tr=sw_transform(walker);SPVec3 origin=su_vector(su.tr_get_position,tr),right=su_vector(su.tr_right,tr),forward=su_vector(su.tr_forward,tr);
     SPWorld w=helper_unit_world();SPGround ground;
-    for(unsigned attempt=0;attempt<12;attempt++){
-        float side=(float)((slot+attempt)%4)-1.5f;SPVec3 query=su_add(origin,su_add(su_mul(right,side*.85f),su_mul(*heading,1.5f+(float)(attempt/4)*.8f)));
-        if(sp_grounded(&w,query,.6f,3.f,point,up,&ground)&&w.clear(w.ctx,*point,*point,*up,SP_RADIUS,SP_HEIGHT,ground.support_id)&&!sp_crowded(&navigation,0,*point))return 1;
+    for(unsigned attempt=0;attempt<15;attempt++){
+        SPVec3 query=lh_spawn_candidate(origin,right,forward,slot,attempt);
+        if(sp_grounded(&w,query,.6f,3.f,point,up,&ground)&&w.clear(w.ctx,*point,*point,*up,SP_RADIUS,SP_HEIGHT,ground.support_id)&&!sp_crowded(&navigation,0,*point)){
+            SPVec3 sight=su_sub(*point,origin);float distance=su_sqrt(su_dot(sight,sight));
+            union {U64 align;unsigned char bytes[96];} hit;su_zero(&hit,sizeof(hit));
+            /* A clear far-side floor is not an introduction in the player's
+             * view. Walls must not hide the paid worker behind the terminal. */
+            if(distance<.2f||sw_ray(origin,su_mul(sight,1/distance),distance-.1f,hit.bytes))continue;
+            *heading=sp_tangent(su_sub(origin,*point),*up);return 1;
+        }
     }return 0;
 }
 static void activate(unsigned slot,SPVec3 point,SPVec3 up,SPVec3 heading){
-    LHWorker *h=&helpers.workers[slot];su_zero(h,sizeof(*h));h->active=1;h->position=point;h->up=up;h->heading=sp_tangent(heading,up);h->mode=LH_CHEER;h->seek_timer=2.4f+(float)slot*.12f;
+    LHWorker *h=&helpers.workers[slot];lh_activate(h,point,up,sp_tangent(heading,up),slot);helper_exit_done[slot]=0;lh_zero(&helper_brush_probes[slot],sizeof(helper_brush_probes[slot]));
     SPPet *p=&navigation.players[slot];su_zero(p,sizeof(*p));p->used=p->active=p->owned=1;p->position=point;p->up=up;p->heading=h->heading;
+    if(test_tools||helper_observe){
+        char line[512],*out=cat(line,"{\"event\":\"helper-spawn\",\"worker\":");out=num(out,slot);out=cat(out,",\"greet_seconds\":");out=measure(out,h->seek_timer);out=cat(out,",\"position\":[");out=measure(out,point.x);*out++=',';out=measure(out,point.y);*out++=',';out=measure(out,point.z);cat(out,"]}\n");record(line);
+    }
 }
 static int contact(void *ctx,unsigned slot,SPVec3 *point,SPVec3 *up,SPVec3 *heading){
     (void)ctx;SPPet *p=&navigation.players[slot];SPWorld w=helper_contact_world();int grounded=lhc_contact(&navigation,slot,live_dt,&w);
@@ -168,69 +181,40 @@ static int route_edge(void *ctx,SPVec3 from,SPVec3 desired,SPVec3 *end){
     if(test_tools&&helper_route_probe){unsigned slot=(unsigned)(c->pet-navigation.players);return lhp_edge(&navigation,c->pet,&c->world,from,desired,end,&up,&g,&helper_route_probes[slot],lr_h(&routes[slot],from),&helper_clear_detail);}
     return sp_edge(&navigation,c->pet,&c->world,from,desired,end,&up,&g,0);
 }
-static int move(void *ctx,unsigned slot,SPVec3 goal,float speed,float dt,SPVec3 *point,SPVec3 *up,SPVec3 *heading){
-    (void)ctx;SPWorld w=helper_unit_world();SPPet *p=&navigation.players[slot];SPVec3 end,new_up;SPGround g;
-    SPVec3 requested=goal;goal=su_sub(goal,su_mul(p->up,su_dot(su_sub(goal,p->position),p->up)));
-    if(!sp_edge(&navigation,p,&w,p->position,goal,&end,&new_up,&g,0)){
-        LHRoute *route=&routes[slot];
-        if(!route->state||lh_distance2(route->goal,requested)>.25f){lr_begin(route,p->position,su_normal(su_cross(p->up,p->heading)),p->heading,requested);if(test_tools&&helper_route_probe)lhp_zero(&helper_route_probes[slot],sizeof(helper_route_probes[slot]));helper_portal[slot]=0;}
-        if(route->state==LR_SEARCHING){
-            /* One worker gets one expansion per logical tick. Four pets cannot turn
-             * a blocked room exit into four unbounded synchronous searches. */
-            if(helper_sim_tick%helpers.owned==slot){
-                LREdgeContext edge={p,w};lr_step(route,route_edge,&edge,1);
-                if(route->state==LR_SEARCHING){
-                    /* Radial scans may nominate dirt behind a station. Prefer
-                     * real dirty terrain encountered on a verified corridor. */
-                    SPVec3 reached=route->nodes[route->last].point;SPGround ground;
-                    if(sw_ground(&sw,su_add(reached,su_mul(p->up,.1f)),p->up,SP_HALF_HEIGHT+.2f,&ground)&&!ground.support_id&&dust(0,ground.point)>.002f&&!lh_reserved(&helpers,slot,ground.point)){
-                        helpers.workers[slot].target=ground.point;route->goal=ground.point;lr_accept(route,route->last,reached);helper_portal[slot]=0;
-                        if(test_tools)event("reachable-dirt-job");
-                    }else helper_portal[slot]=ld_route_portal(route,route_edge,&edge,p->up);
-                }
-            }
-            if(route->state==LR_SEARCHING)return LH_MOVE_PENDING;
-        }
-        if(route->state!=LR_READY)return LH_MOVE_BLOCKED;
-        goal=lr_waypoint(route,p->position);
-        if(helper_portal[slot]&&lh_distance2(goal,p->position)<.18f*.18f&&route->index==route->count){
-            if(helper_doors[helper_portal[slot]-1].amount>.85f){route->state=0;helper_portal[slot]=0;}
-            return LH_MOVE_PENDING;
-        }
-    }else {routes[slot].state=0;helper_portal[slot]=0;}
-    SPVec3 delta=sp_tangent(sp_sub(goal,p->position),p->up);float distance=sp_length(sp_sub(goal,p->position));if(distance>speed*dt)distance=speed*dt;
-    if(distance<.0001f)return 1;SPVec3 steered=su_normal(lh_steer(&helpers,slot,delta)),desired=su_add(p->position,su_mul(steered,distance));
-    if(!sp_edge(&navigation,p,&w,p->position,desired,&end,&new_up,&g,0)){
-        desired=su_add(p->position,su_mul(delta,distance));
-        if(!sp_edge(&navigation,p,&w,p->position,desired,&end,&new_up,&g,0)){routes[slot].state=0;return 0;}steered=delta;
-    }
-    p->position=end;p->up=new_up;p->heading=sp_tangent(steered,new_up);sp_contact(p,&w,&g);*point=p->position;*up=p->up;*heading=p->heading;return 1;
-}
+#include "navigation.h"
 static int brush(void *ctx,unsigned slot,SPVec3 query,SPVec3 *point){
     (void)ctx;SPGround g;LHWorker *p=&helpers.workers[slot];SPVec3 up=p->up;
     /* Probe the visible bristle head from the previous rendered pose. This
      * keeps the contact tied to the same prop, including its short sweep. */
+    LHBrushProbe *probe=&helper_brush_probes[slot];lh_zero(probe,sizeof(*probe));
     LHVisual *v=&lv_helpers[slot];if(!v->made)return 0;
     const float *m=v->last+(LH_BONE_COUNT-1)*12;const float s=LH_SOURCE_SCALE;
-    SPVec3 local=su_v(m[1]*.02f*s+m[2]*.47f*s+m[3],m[5]*.02f*s+m[6]*.47f*s+m[7],m[9]*.02f*s+m[10]*.47f*s+m[11]);
+    if(!lh_brush_visible(m))return 0;
+    SPVec3 local=lh_brush_tip(m,s);
     up=v->up;SPVec3 right=su_normal(su_cross(up,v->heading));query=su_add(su_sub(v->position,su_mul(up,SP_HALF_HEIGHT)),su_add(su_mul(right,local.x),su_add(su_mul(up,local.y),su_mul(v->heading,local.z))));
-    if(!sw_ground(&sw,su_add(query,su_mul(up,.25f)),up,1,&g)||g.support_id||su_dot(g.normal,up)<.9f)return 0;*point=g.point;return 1;
+    probe->tip=query;
+    /* The longer ray is diagnostic only: it may measure a lower floor beside
+     * a platform, but that floor is never cleaned by a hovering brush. */
+    if(!sw_ground(&sw,su_add(query,su_mul(up,.25f)),up,1,&g)||g.support_id||su_dot(g.normal,up)<.9f)return 0;
+    probe->ground=g.point;probe->gap=su_dot(su_sub(query,g.point),up);probe->measured=1;
+    if(!lh_brush_gap_allowed(probe->gap))return 0;
+    probe->admitted=1;*point=g.point;return 1;
 }
 static float dust(void *ctx,SPVec3 point){(void)ctx;int ok=1;void *a[]={&point};PTR value=call(sw.dust_height,su_get(sw.world),a,&ok);return ok&&value?*(float *)unbox(value):0;}
-static int clean(void *ctx,SPVec3 a,SPVec3 b,float radius,float strength){
-    if(!helper_units->host())return 0;float before=test_tools?dust(ctx,b):0;int ok=1;float width=2*radius;void *args[]={&a,&b,&width,&strength};PTR result=call(clean_stroke,su_get(sw.world),args,&ok);
+static int clean(void *ctx,unsigned worker,SPVec3 a,SPVec3 b,float radius,float strength){
+    if(!helper_units->host())return 0;float before=(test_tools||helper_observe)?dust(ctx,b):0;int ok=1;float width=2*radius;void *args[]={&a,&b,&width,&strength};PTR result=call(clean_stroke,su_get(sw.world),args,&ok);
     int cells=ok&&result?*(int *)unbox(result):0;
-    if(test_tools){
-        char line[512],*p=cat(line,"{\"event\":\"brush-observation\",\"cells\":");p=num(p,cells>0?(U64)cells:0);p=cat(p,",\"call_ok\":");p=num(p,(U64)ok);p=cat(p,",\"dust_before\":");p=measure(p,before);p=cat(p,",\"dust_after\":");p=measure(p,dust(ctx,b));p=cat(p,",\"radius\":");p=measure(p,radius);p=cat(p,",\"strength\":");p=measure(p,strength);cat(p,"}\n");record(line);
-        if(ok&&cells>0)for(unsigned i=0;i<32;i++)if(!dust_probes[i].active){dust_probes[i]=(LHDustProbe){b,before,0,(unsigned)cells,1};break;}
+    if(test_tools||helper_observe){
+        char line[512],*p=cat(line,"{\"event\":\"brush-observation\",\"worker\":");p=num(p,worker);p=cat(p,",\"cells\":");p=num(p,cells>0?(U64)cells:0);p=cat(p,",\"call_ok\":");p=num(p,(U64)ok);p=cat(p,",\"dust_before\":");p=measure(p,before);p=cat(p,",\"dust_after\":");p=measure(p,dust(ctx,b));p=cat(p,",\"radius\":");p=measure(p,radius);p=cat(p,",\"strength\":");p=measure(p,strength);p=cat(p,",\"brush_gap\":");p=measure(p,helper_brush_probes[worker].gap);cat(p,"}\n");record(line);
+        if(ok&&cells>0)for(unsigned i=0;i<32;i++)if(!dust_probes[i].active){dust_probes[i]=(LHDustProbe){b,before,0,(unsigned)cells,1,worker,helper_brush_probes[worker].gap};break;}
     }
     return cells;
 }
 static void observe_dust(float dt){
-    if(!test_tools)return;
+    if(!test_tools&&!helper_observe)return;
     for(unsigned i=0;i<32;i++)if(dust_probes[i].active){
         LHDustProbe *q=&dust_probes[i];q->age+=dt;if(q->age<.75f)continue;
-        char line[512],*p=cat(line,"{\"event\":\"dust-change\",\"cells\":");p=num(p,q->cells);p=cat(p,",\"dust_before\":");p=measure(p,q->before);p=cat(p,",\"dust_after\":");p=measure(p,dust(0,q->point));p=cat(p,",\"delay\":");p=measure(p,q->age);p=cat(p,",\"point\":[");p=measure(p,q->point.x);*p++=',';p=measure(p,q->point.y);*p++=',';p=measure(p,q->point.z);cat(p,"]}\n");record(line);q->active=0;
+        char line[512],*p=cat(line,"{\"event\":\"dust-change\",\"worker\":");p=num(p,q->worker);p=cat(p,",\"cells\":");p=num(p,q->cells);p=cat(p,",\"dust_before\":");p=measure(p,q->before);p=cat(p,",\"dust_after\":");p=measure(p,dust(0,q->point));p=cat(p,",\"delay\":");p=measure(p,q->age);p=cat(p,",\"brush_gap\":");p=measure(p,q->brush_gap);p=cat(p,",\"point\":[");p=measure(p,q->point.x);*p++=',';p=measure(p,q->point.y);*p++=',';p=measure(p,q->point.z);cat(p,"]}\n");record(line);q->active=0;
     }
 }
 static SGText glyphs;
@@ -281,7 +265,7 @@ static unsigned helper_command(U64 peer,const unsigned char *bytes,unsigned n,un
     if(ready&&helper_units->host()){unsigned quote=lhc_request_quote(&helpers,bytes,n);if(quote!=LH_OK)return lhc_response(out,quote,&helpers);}
     unsigned code=LHC_NOT_READY;PTR actor=helper_units->peer_actor(peer);SURoot root=su_hold(actor);
     if(ready&&helper_units->host()&&root&&terminal){
-        SPVec3 p=su_vector(su.tr_get_position,sw_transform(su_get(root))),at=su_vector(su.tr_get_position,sw_transform(su_get(terminal)));
+        SPVec3 p=su_vector(su.tr_get_position,sw_transform(su_get(root))),at=su_vector(su.tr_get_position,su_transform(su_get(terminal)));
         code=LHC_TOO_FAR;
         if(moon_interaction_reach(moon_interaction_from_sp(p),moon_interaction_from_sp(at),4.5f)){
             int ok=1;void *args[]={&peer};PTR player=call(su_method("MoonCleaners","MoonCrew","PlayerId","System.UInt64"),0,args,&ok);SURoot owner=su_hold(ok?player:0);
@@ -298,7 +282,7 @@ static void teardown(void){
     lv_override_clip=-1;
     save_helpers();for(unsigned i=0;i<LH_MAX;i++){lha_stop(i);if(lv_helpers[i].made)lv_drop(&lv_helpers[i]);}
     su_drop(&helper_overlap_array);helper_physics_bound=0;
-    ld_drop();lh_zero(routes,sizeof(routes));if(test_tools&&helper_route_probe)lhp_zero(helper_route_probes,sizeof(helper_route_probes));lh_zero(dust_probes,sizeof(dust_probes));
+    ld_drop();lh_zero(routes,sizeof(routes));if(test_tools&&helper_route_probe)lhp_zero(helper_route_probes,sizeof(helper_route_probes));lh_zero(dust_probes,sizeof(dust_probes));lh_zero(helper_brush_probes,sizeof(helper_brush_probes));
     for(unsigned i=0;i<5;i++)if(labels[i]){int ok=1;PTR filter=su_component(su_get(labels[i]),"MeshFilter");PTR mesh=call(su_method("UnityEngine","MeshFilter","get_sharedMesh",""),filter,0,&ok);if(ok&&mesh)su_destroy(mesh);}
     if(terminal)su_destroy(su_get(terminal));su_drop(&terminal);for(unsigned i=0;i<2;i++)su_drop(&buttons[i]);for(unsigned i=0;i<5;i++)su_drop(&labels[i]);lt_drop();terminal_hint[0]=0;
     for(unsigned i=0;i<LH_MATERIAL_COUNT;i++){su_destroy(su_get(lv_materials[i]));su_drop(&lv_materials[i]);}for(unsigned i=0;i<3;i++){su_destroy(su_get(lv_textures[i]));su_drop(&lv_textures[i]);}su_destroy(su_get(lv_label_material));su_drop(&lv_label_material);
@@ -346,11 +330,12 @@ static int before(int id,Context *context){
     save_timer+=elapsed;if(save_timer>2){save_timer=0;save_helpers();}
     DWORD pid=0;window_pid(foreground_window(),&pid);int allow=pid==GetCurrentProcessId()&&boolean(focus,0,&ok)&&!boolean(sw.blocked,walker,&ok)&&!boolean(sw.typing,0,&ok)&&boolean(sw.firstperson,walker,&ok)&&ok;
     if(allow&&authoritative)test_input(walker,world);if(ticks%120==0)test_sample(world);
+    lt_tick(elapsed);
     MoonInteractionState interaction=moon_interaction_sample(lh_interact);terminal_refresh_hint();lh_interaction_hint(walker,interaction);
     if(allow&&interaction.input.pressed&&moon_interaction_take(lh_interact,walker)){
         MoonInteractionTarget current={0};
         if(lh_interaction_query(0,walker,&current)&&current.identity==interaction.target&&current.token==interaction.token){
-            if(interaction.token<2)purchase(walker,world,interaction.token?LH_UPGRADE:LH_BUY);
+            if(interaction.token<2){lt_press(interaction.token);purchase(walker,world,interaction.token?LH_UPGRADE:LH_BUY);}
             else {unsigned i=interaction.token-2;if(i<helpers.owned&&lv_helpers[i].made){lv_helpers[i].greet_remaining=2;event("helper-greet");}}
         }
     }return 0;
@@ -373,6 +358,8 @@ __declspec(dllexport) int MoonLab_ModStart(PTR domain,PTR game){
     test_api_info(game);
     ld_ready=ld_bind(game);if(!ld_ready)event("door-interface-unavailable");
     char test[8];DWORD test_n=GetEnvironmentVariableA("MOONLAB_TEST_TOOLS",test,sizeof(test));test_tools=test_n==1&&test[0]=='1';
+    /* Passive helper evidence is independent of the global setup hotkeys. */
+    test_n=GetEnvironmentVariableA("MOONLAB_HELPER_OBSERVE",test,sizeof(test));helper_observe=test_n==1&&test[0]=='1';
     test_n=GetEnvironmentVariableA("MOONLAB_HELPER_ROUTE_PROBE",test,sizeof(test));helper_route_probe=test_tools&&test_n==1&&test[0]=='1';
     test_n=GetEnvironmentVariableA("MOONLAB_HELPER_PHYSICS_IDS",test,sizeof(test));helper_physics_ids=helper_route_probe&&test_n==1&&test[0]=='1';
     MoonUnitProvider provider={sizeof(provider),2,helper_snapshot,helper_receive,helper_replica_reset,helper_unit_frame,helper_command,helper_result};

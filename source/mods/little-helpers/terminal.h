@@ -1,7 +1,16 @@
 #ifndef LITTLE_HELPERS_TERMINAL_H
 #define LITTLE_HELPERS_TERMINAL_H
-#include "terminal_model.h"
+#include "terminal_controls.h"
 static SURoot lt_materials[4],lt_meshes[6],lt_title_ink;
+static LTControls lt_controls;
+static void lt_tick(float dt){
+    if(!terminal)return;lt_controls_step(&lt_controls,dt);
+    for(unsigned i=0;i<2;i++)if(buttons[i]){
+        LTPoint p=lt_controls_position(&lt_controls,i);
+        su_set_vector(su.tr_local_position,su_transform(su_get(buttons[i])),su_v(p.x,p.y,p.z));
+    }
+}
+static void lt_press(unsigned index){lt_controls_press(&lt_controls,index);}
 static void lt_emission(PTR material,SUColor color){
     int ok=1;void *keyword[]={su.string("_EMISSION")},*value[]={su.string("_EmissionColor"),&color};
     call(su.material_keyword,material,keyword,&ok);call(su_method("UnityEngine","Material","SetColor","System.String;UnityEngine.Color"),material,value,&ok);
@@ -48,6 +57,7 @@ static int lt_anchor(SPVec3 *point,SPVec3 *normal,SPVec3 *up){
 }
 static void make_terminal(PTR walker){
     (void)walker;if(terminal)return;SPVec3 point,normal,up;if(!lt_anchor(&point,&normal,&up))return;
+    lt_controls_init(&lt_controls);
     static const SUColor colors[]={{.78f,.79f,.76f,1},{.015f,.020f,.026f,1},{.003f,.008f,.012f,1},{.95f,.30f,.035f,1}};
     for(unsigned i=0;i<4;i++){lt_materials[i]=su_hold(lv_material(colors[i]));if(!lt_materials[i])goto fail;}
     terminal_button_ink=lt_materials[1];
@@ -71,7 +81,12 @@ static void make_terminal(PTR walker){
     }
     const char *names[]={"Buy label","Upgrade label","Helper shop status","Helper terminal title","Helper terminal interaction"};
     const SPVec3 positions[]={{.43f,-.322f,.254f},{-.43f,-.322f,.254f},{0,.120f,.201f},{0,.340f,.201f},{0,-.515f,.204f}};
-    for(unsigned i=0;i<5;i++){PTR label=su_gameobject(names[i],tr);labels[i]=su_hold(label);if(!labels[i])goto fail;su_set_vector(su.tr_local_position,su_transform(label),positions[i]);}
+    for(unsigned i=0;i<5;i++){
+        /* Lettering and ray collider ride the same cap transform. */
+        PTR parent=i<2?su_transform(su_get(buttons[i])):tr;
+        SPVec3 position=positions[i];if(i<2)position=su_sub(position,su_v(lt_buttons[i].center.x,lt_buttons[i].center.y,lt_buttons[i].center.z));
+        PTR label=su_gameobject(names[i],parent);labels[i]=su_hold(label);if(!labels[i])goto fail;su_set_vector(su.tr_local_position,su_transform(label),position);
+    }
     text(su_get(labels[0]),"BUY $75");text(su_get(labels[3]),"LITTLE HELPERS");terminal_hint[0]=0;terminal_refresh_hint();
     {char status[64],*p=cat(status,"HELPERS ");p=num(p,helpers.owned);p=cat(p," / ");num(p,helpers.capacity);terminal_status(status);}
     update_prices();
@@ -84,6 +99,7 @@ fail:
     failed=1;event("terminal-model-failed");
 }
 static void lt_drop(void){
+    lt_controls_init(&lt_controls);
     terminal_button_ink=0;su_destroy(su_get(lt_title_ink));su_drop(&lt_title_ink);
     for(unsigned i=0;i<6;i++){su_destroy(su_get(lt_meshes[i]));su_drop(&lt_meshes[i]);}
     for(unsigned i=0;i<4;i++){su_destroy(su_get(lt_materials[i]));su_drop(&lt_materials[i]);}

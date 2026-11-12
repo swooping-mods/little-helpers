@@ -4,21 +4,22 @@
  * owns timing, leaf movement, collision and audio; no collider is disabled. */
 #include "door_core.h"
 typedef LHDoorBounds LDBounds;
-typedef struct {SURoot controller,trigger;LDBounds box;float amount;unsigned observed;} LDDoor;
-static LDDoor helper_doors[16];static unsigned helper_door_count,helper_portal[LH_MAX];
-static PTR ld_presence,ld_time,ld_bounds,ld_amount;
+typedef struct {SURoot controller,trigger;LDBounds box;SPVec3 forward;float amount;unsigned observed;} LDDoor;
+static LDDoor helper_doors[16];static unsigned helper_door_count,helper_portal[LH_MAX],helper_exit_done[LH_MAX];
+static PTR ld_presence,ld_frame,ld_time,ld_bounds,ld_amount;
 static void (*ld_set_field)(PTR,PTR,void *);
 static int ld_ready;
 static SPVec3 ld_nearest(LDBounds b,SPVec3 p){return lhd_nearest(b,p);}
 static int ld_near(LDBounds b,SPVec3 p,float radius){return lhd_near(b,p,radius);}
-static void ld_drop(void){for(unsigned i=0;i<helper_door_count;i++){su_drop(&helper_doors[i].controller);su_drop(&helper_doors[i].trigger);}helper_door_count=0;lh_zero(helper_portal,sizeof(helper_portal));}
+static void ld_drop(void){for(unsigned i=0;i<helper_door_count;i++){su_drop(&helper_doors[i].controller);su_drop(&helper_doors[i].trigger);}helper_door_count=0;lr_reset_workers(routes,helper_portal,helper_exit_done);}
 static int ld_bind(PTR game){
     PTR klass=find_class("MoonCleaners","MoonCollectorDoor"),stay=method("MoonCleaners","MoonCollectorDoor","Stay",1),fixed=method("MoonCleaners","MoonCollectorDoor","FixedUpdate",0);
-    ld_presence=klass?get_field(klass,"presence"):0;PTR (*field_type)(PTR)=(PTR(*)(PTR))GetProcAddress(game,"il2cpp_field_get_type");
+    ld_presence=klass?get_field(klass,"presence"):0;ld_frame=klass?get_field(klass,"frame"):0;PTR (*field_type)(PTR)=(PTR(*)(PTR))GetProcAddress(game,"il2cpp_field_get_type");
     ld_set_field=(void(*)(PTR,PTR,void *))GetProcAddress(game,"il2cpp_field_set_value");
     if(!stay||!fixed||!ld_presence||!field_type||!ld_set_field||method_token(stay)!=100664281||method_token(fixed)!=100664282||su.field_offset(ld_presence)!=68)return 0;
     if((U64)*(PTR *)stay-(U64)game!=0x681100||(U64)*(PTR *)fixed-(U64)game!=0x680d70)return 0;
     char *type=su.type_name(field_type(ld_presence));int valid=type&&su_eq(type,"System.Single");if(type)su.free(type);if(!valid)return 0;
+    if(ld_frame){type=su.type_name(field_type(ld_frame));valid=su.field_offset(ld_frame)==56&&type&&su_eq(type,"UnityEngine.Transform");if(type)su.free(type);if(!valid)ld_frame=0;}
     ld_time=su_method("UnityEngine","Time","get_time","");ld_bounds=su_method("UnityEngine","Collider","get_bounds","");ld_amount=method("MoonCleaners","MoonCollectorDoor","get_OpenAmount",0);
     return ld_time&&ld_bounds&&ld_amount;
 }
@@ -32,7 +33,8 @@ static void ld_load(void){
         if(!trigger||!boolean(su_method("UnityEngine","Collider","get_isTrigger",""),trigger,&ok)||!ok)continue;
         PTR value=call(ld_bounds,trigger,0,&ok);if(!ok||!value)continue;LDBounds box=*(LDBounds *)unbox(value);
         if(!lh_valid(box.center)||!lh_valid(box.extents)||box.extents.x<=0||box.extents.y<=0||box.extents.z<=0)continue;
-        helper_doors[helper_door_count++]=(LDDoor){su_hold(controller),su_hold(trigger),box,0,0};
+        PTR frame=0;if(ld_frame)field_value(controller,ld_frame,&frame);SPVec3 forward=frame?su_vector(su.tr_forward,frame):su_v(0,0,0);
+        helper_doors[helper_door_count++]=(LDDoor){su_hold(controller),su_hold(trigger),box,forward,0,0};
     }
     if(test_tools){char line[128],*p=cat(line,"{\"event\":\"helper-doors\",\"count\":");p=num(p,helper_door_count);cat(p,"}\n");record(line);}
 }
@@ -48,6 +50,20 @@ static void ld_tick(PTR walker){
             }
         }
     }
+}
+static int ld_exit_goal(SPVec3 position,SPVec3 up,SPVec3 *out){
+    float best=1e20f;int found=0;
+    for(unsigned i=0;i<helper_door_count;i++){
+        SPVec3 goal;if(!lhd_exit_point(helper_doors[i].box,position,up,helper_doors[i].forward,&goal))continue;
+        SPVec3 approach=ld_nearest(helper_doors[i].box,position);
+        approach=su_sub(approach,su_mul(up,su_dot(su_sub(approach,position),up)));SPGround floor;
+        if(!sw_ground(&sw,su_add(approach,su_mul(up,.6f)),up,1.7f,&floor)||!floor.support_id||su_dot(floor.normal,up)<SP_SLOPE_COS)continue;
+        float height=su_dot(su_sub(position,floor.point),up);
+        if(height<SP_HALF_HEIGHT-.6f||height>SP_HALF_HEIGHT+.6f)continue;
+        float distance=lh_distance2(ld_nearest(helper_doors[i].box,position),position);
+        if(distance<best){best=distance;*out=goal;found=1;}
+    }
+    return found;
 }
 static unsigned ld_route_portal(LHRoute *route,LREdge edge,void *ctx,SPVec3 up){
     SPVec3 point=route->nodes[route->last].point;

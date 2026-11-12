@@ -10,10 +10,14 @@ typedef struct {float x,y,z;} SPVec3;
 #define LH_TARGETS 64u
 #define LH_PRICE 75u
 #define LH_BRUSH_RADIUS .15f
-#define LH_BRUSH_STRENGTH .008f
-#define LH_STROKE_SECONDS .35f
+#define LH_FOOT_HEIGHT .35f
+#define LH_TARGET_HEIGHT_TOLERANCE .12f
+#define LH_BRUSH_STRENGTH .10f
+#define LH_STROKE_SECONDS .10f
+#define LH_ROUTE_PATIENCE 30.f
+#define LH_AVOID_JOBS 4u
 enum {LH_IDLE,LH_WALK,LH_LOWER,LH_SWEEP,LH_BLOCKED,LH_CHEER};
-enum {LH_MOVE_BLOCKED,LH_MOVE_OK,LH_MOVE_PENDING};
+enum {LH_MOVE_BLOCKED,LH_MOVE_OK,LH_MOVE_PENDING,LH_MOVE_PROGRESS};
 enum {LH_BUY=1,LH_UPGRADE=2};
 enum {LH_OK,LH_NO_FUNDS,LH_FULL,LH_MAX_CAPACITY,LH_INVALID,LH_DUPLICATE};
 typedef unsigned long long LHTxn;
@@ -21,8 +25,9 @@ typedef struct {unsigned code,debit;LHTxn txn;unsigned action;} LHResult;
 typedef struct {SPVec3 point;float dust;} LHTarget;
 typedef struct {
     SPVec3 position,up,heading,target,brush,avoided;
+    SPVec3 failed_jobs[LH_AVOID_JOBS];float failed_timers[LH_AVOID_JOBS];unsigned failed_next;
     unsigned active,mode,has_target,has_brush;
-    float clock,seek_timer,stroke_timer,blocked_time,avoid_timer;
+    float clock,seek_timer,stroke_timer,blocked_time,avoid_timer,pending_time;
     unsigned strokes,cells;
 } LHWorker;
 typedef struct {
@@ -36,7 +41,7 @@ typedef struct {
     int (*move)(void *,unsigned,SPVec3,float,float,SPVec3 *,SPVec3 *,SPVec3 *);
     int (*brush)(void *,unsigned,SPVec3,SPVec3 *);
     float (*dust)(void *,SPVec3);
-    int (*clean)(void *,SPVec3,SPVec3,float,float);
+    int (*clean)(void *,unsigned,SPVec3,SPVec3,float,float);
 } LHWorld;
 static inline SPVec3 lh_v(float x,float y,float z){return (SPVec3){x,y,z};}
 static inline SPVec3 lh_add(SPVec3 a,SPVec3 b){return lh_v(a.x+b.x,a.y+b.y,a.z+b.z);}
@@ -86,16 +91,29 @@ static inline int lh_assign(LHCore *c,unsigned slot,const LHWorld *w){
     for(unsigned i=0;i<n;i++){
         LHTarget *t=&candidates[i];if(!lh_valid(t->point)||!lh_finite(t->dust)||t->dust<=.002f||lh_reserved(c,slot,t->point))continue;
         if(p->avoid_timer>0&&lh_distance2(t->point,p->avoided)<1.f)continue;
+        unsigned avoided=0;for(unsigned j=0;j<LH_AVOID_JOBS;j++)if(p->failed_timers[j]>0&&lh_distance2(t->point,p->failed_jobs[j])<1.f)avoided=1;
+        if(avoided)continue;
         float d=lh_distance2(p->position,t->point);if(d<best){best=d;p->target=t->point;found=1;}
     }
-    p->has_target=(unsigned)found;p->seek_timer=1.f;p->has_brush=0;p->blocked_time=0;return found;
+    p->has_target=(unsigned)found;p->seek_timer=1.f;p->has_brush=0;p->blocked_time=0;p->pending_time=0;return found;
 }
-static inline void lh_avoid(LHWorker *p){p->avoided=p->target;p->avoid_timer=20;p->has_target=0;p->has_brush=0;p->seek_timer=.5f;p->blocked_time=0;}
+static inline void lh_avoid(LHWorker *p){
+    p->avoided=p->target;p->avoid_timer=20;
+    unsigned next=p->failed_next++%LH_AVOID_JOBS;p->failed_jobs[next]=p->target;p->failed_timers[next]=20;
+    p->has_target=0;p->has_brush=0;p->seek_timer=.5f;p->blocked_time=p->pending_time=0;
+}
+static inline void lh_pending(LHWorker *p,float dt,int progress){
+    p->mode=LH_IDLE;p->has_brush=0;if(progress)p->pending_time=0;else p->pending_time+=dt;
+    /* A sealed or newly changed room must not reserve a job forever. Other
+     * workers retain their own jobs while this worker tries another patch. */
+    if(p->pending_time>=LH_ROUTE_PATIENCE)lh_avoid(p);
+}
 static inline int lh_tick(LHCore *c,float dt,const LHWorld *w){
     if(!c||!w||!w->contact||!w->scan||!w->move||!w->brush||!w->dust||!w->clean||!lh_finite(dt)||dt<=0||dt>.1f||c->capacity<1||c->capacity>LH_MAX||c->owned>c->capacity)return 0;
     for(unsigned i=0;i<c->owned;i++){
         LHWorker *p=&c->workers[i];if(!p->active)continue;
         p->clock+=dt;p->seek_timer-=dt;p->avoid_timer-=dt;
+        for(unsigned j=0;j<LH_AVOID_JOBS;j++)p->failed_timers[j]-=dt;
         /* Refresh contact even at rest as cleaning removes the supporting dust. */
         if(!w->contact(w->ctx,i,&p->position,&p->up,&p->heading)){p->mode=LH_BLOCKED;p->has_brush=0;continue;}
         if(!p->has_target&&p->seek_timer<=0){lh_assign(c,i,w);p->clock=0;}
@@ -103,13 +121,19 @@ static inline int lh_tick(LHCore *c,float dt,const LHWorld *w){
         float dust=w->dust(w->ctx,p->target);
         if(!lh_finite(dust)||dust<=.002f){p->has_target=0;p->has_brush=0;p->mode=LH_CHEER;p->clock=0;p->seek_timer=.8f;continue;}
         SPVec3 delta=lh_sub(p->target,p->position);delta=lh_sub(delta,lh_mul(p->up,lh_dot(delta,p->up)));
-        if(lh_dot(delta,delta)>.32f*.32f){
+        float height=lh_dot(lh_sub(p->position,p->target),p->up);
+        int wrong_floor=height<LH_FOOT_HEIGHT-LH_TARGET_HEIGHT_TOLERANCE||height>LH_FOOT_HEIGHT+LH_TARGET_HEIGHT_TOLERANCE;
+        if(lh_dot(delta,delta)>.32f*.32f||wrong_floor){
             p->mode=LH_WALK;p->clock=0;p->has_brush=0;
+            SPVec3 before=p->position;
             int moved=w->move(w->ctx,i,p->target,.55f,dt,&p->position,&p->up,&p->heading);
+            /* A target directly below a ledge is not reached by planar distance.
+             * If a checked move cannot advance or descend, try another job. */
+            if(moved==LH_MOVE_OK&&wrong_floor&&lh_distance2(before,p->position)<.00000001f)moved=LH_MOVE_BLOCKED;
             if(!moved){
                 p->mode=LH_BLOCKED;p->blocked_time+=dt;
                 if(p->blocked_time>2.f)lh_avoid(p);
-            }else {p->blocked_time=0;if(moved==LH_MOVE_PENDING)p->mode=LH_IDLE;}
+            }else {p->blocked_time=0;if(moved==LH_MOVE_PENDING||moved==LH_MOVE_PROGRESS)lh_pending(p,dt,moved==LH_MOVE_PROGRESS);else p->pending_time=0;}
             continue;
         }
         if(p->mode!=LH_LOWER&&p->mode!=LH_SWEEP){p->mode=LH_LOWER;p->clock=0;p->has_brush=0;p->stroke_timer=0;}
@@ -118,18 +142,22 @@ static inline int lh_tick(LHCore *c,float dt,const LHWorld *w){
          * walking first; a brush can never erase dust along a teleport chord. */
         SPVec3 goal=lh_add(p->position,lh_mul(p->heading,.15f));
         int swept=w->move(w->ctx,i,goal,.32f,dt,&p->position,&p->up,&p->heading);
-        if(swept!=LH_MOVE_OK){p->has_brush=0;if(swept==LH_MOVE_PENDING){p->mode=LH_IDLE;continue;}p->mode=LH_BLOCKED;p->blocked_time+=.4f;if(p->blocked_time>2.f)lh_avoid(p);continue;}
+        if(swept!=LH_MOVE_OK){p->has_brush=0;if(swept==LH_MOVE_PENDING||swept==LH_MOVE_PROGRESS){lh_pending(p,dt,swept==LH_MOVE_PROGRESS);continue;}p->mode=LH_BLOCKED;p->blocked_time+=.4f;if(p->blocked_time>2.f)lh_avoid(p);continue;}
+        p->pending_time=0;
         SPVec3 brush;
         if(!w->brush(w->ctx,i,lh_add(p->position,lh_mul(p->heading,.32f)),&brush)){p->has_brush=0;p->blocked_time+=dt;if(p->blocked_time>2.f)lh_avoid(p);continue;}
         p->stroke_timer+=dt;
-        if(p->stroke_timer>=LH_STROKE_SECONDS){
-            p->stroke_timer=0;
-            if(p->has_brush&&lh_distance2(p->brush,brush)<.16f*.16f){
-                int cells=w->clean(w->ctx,p->brush,brush,LH_BRUSH_RADIUS,LH_BRUSH_STRENGTH);
-                if(cells>0){p->strokes++;p->cells+=(unsigned)cells;c->strokes++;c->cells+=(unsigned)cells;}
-            }
-            p->brush=brush;p->has_brush=1;
+        if(p->stroke_timer+.000001f>=LH_STROKE_SECONDS){
+            p->stroke_timer-=LH_STROKE_SECONDS;
+            /* Sample contact on every fixed tick, independently of dose cadence.
+             * Fast sweep animations previously exceeded the chord budget over
+             * .35s and silently skipped cleaning. A discontinuity uses only the
+             * newly verified footprint, never a chord through unprobed space. */
+            SPVec3 from=p->has_brush&&lh_distance2(p->brush,brush)<.16f*.16f?p->brush:brush;
+            int cells=w->clean(w->ctx,i,from,brush,LH_BRUSH_RADIUS,LH_BRUSH_STRENGTH);
+            if(cells>0){p->strokes++;p->cells+=(unsigned)cells;c->strokes++;c->cells+=(unsigned)cells;}
         }
+        p->brush=brush;p->has_brush=1;
         if(p->clock>1.8f){p->has_target=0;p->has_brush=0;p->seek_timer=.1f;p->mode=LH_IDLE;}
     }
     return 1;

@@ -113,7 +113,7 @@ static void test_route_probes(void){
     }
 }
 static void test_sample(PTR world){
-    if(!test_tools)return;
+    if(!test_tools&&!helper_observe)return;
     if(helper_route_probe)test_route_probes();
     int ok=1;PTR player=call(method("MoonCleaners","MoonCrew","get_LocalPlayerId",0),0,0,&ok);
     unsigned balance=ok?sw_balance(world,player,&ok):0;static char line[4096];char *p=cat(line,"{\"event\":\"helper-sample\",\"thread\":");p=num(p,(U64)thread_id);
@@ -121,13 +121,13 @@ static void test_sample(PTR world){
     p=cat(p,",\"balance\":");p=num(p,balance);p=cat(p,",\"balance_ok\":");p=num(p,(U64)ok);
     p=cat(p,",\"strokes\":");p=num(p,helpers.strokes);p=cat(p,",\"cells\":");p=num(p,helpers.cells);p=cat(p,",\"workers\":[");
     for(unsigned i=0;i<helpers.owned;i++){
-        LHWorker *worker=&helpers.workers[i];if(i)*p++=',';p=cat(p,"{\"active\":");p=num(p,worker->active);p=cat(p,",\"mode\":");p=num(p,worker->mode);
+        LHWorker *worker=&helpers.workers[i];if(i)*p++=',';p=cat(p,"{\"active\":");p=num(p,worker->active);p=cat(p,",\"mode\":");p=num(p,worker->mode);p=cat(p,",\"strokes\":");p=num(p,worker->strokes);p=cat(p,",\"cells\":");p=num(p,worker->cells);p=cat(p,",\"pending_seconds\":");p=measure(p,worker->pending_time);p=cat(p,",\"brush_gap_known\":");p=num(p,helper_brush_probes[i].measured);p=cat(p,",\"brush_gap\":");p=measure(p,helper_brush_probes[i].gap);p=cat(p,",\"brush_contact\":");p=num(p,helper_brush_probes[i].admitted);
 #if LH_MORPH_COUNT
         p=cat(p,",\"eye_morphs\":");p=num(p,LH_MORPH_COUNT);p=cat(p,",\"eyes\":[");
         for(unsigned k=0;k<3;k++){if(k)*p++=',';p=measure(p,lv_helpers[i].eye_weights[k]);}
         p=cat(p,"],\"eye_upload_error\":");p=measure(p,test_eye_upload_error(&lv_helpers[i]));
 #endif
-        p=cat(p,",\"visual\":");p=num(p,(U64)lv_helpers[i].made);p=cat(p,",\"clip\":\"");p=cat(p,lh_clips[lv_helpers[i].clip].name);p=cat(p,"\",\"animation_time\":");p=measure(p,lv_helpers[i].sample_time);p=cat(p,",\"skin_min\":");p=measure(p,lv_helpers[i].skin_min);p=cat(p,",\"visual_updates\":");p=num(p,lv_helpers[i].updates);p=cat(p,",\"route\":");p=num(p,routes[i].state);p=cat(p,",\"expanded\":");p=num(p,routes[i].expanded);p=cat(p,",\"position\":[");p=measure(p,worker->position.x);*p++=',';p=measure(p,worker->position.y);*p++=',';p=measure(p,worker->position.z);
+        p=cat(p,",\"visual\":");p=num(p,(U64)lv_helpers[i].made);p=cat(p,",\"clip\":\"");p=cat(p,lh_clips[lv_helpers[i].clip].name);p=cat(p,"\",\"animation_time\":");p=measure(p,lv_helpers[i].sample_time);p=cat(p,",\"skin_min\":");p=measure(p,lv_helpers[i].skin_min);p=cat(p,",\"visual_updates\":");p=num(p,lv_helpers[i].updates);p=cat(p,",\"route\":");p=num(p,routes[i].state);p=cat(p,",\"expanded\":");p=num(p,routes[i].expanded);p=cat(p,",\"exit_route\":");p=num(p,routes[i].exit_route);p=cat(p,",\"route_goal\":");p=test_probe_vector(p,routes[i].goal);p=cat(p,",\"position\":[");p=measure(p,worker->position.x);*p++=',';p=measure(p,worker->position.y);*p++=',';p=measure(p,worker->position.z);
         p=cat(p,"],\"target\":[");p=measure(p,worker->target.x);*p++=',';p=measure(p,worker->target.y);*p++=',';p=measure(p,worker->target.z);p=cat(p,"]}");
     }
     p=cat(p,"],\"doors\":[");for(unsigned i=0;i<helper_door_count;i++){if(i)*p++=',';p=measure(p,helper_doors[i].amount);}cat(p,"]}\n");record(line);
